@@ -27,7 +27,7 @@ def main(params):
 
     # prepare dataloaders
     nyuv2_train_set = NYUv2(root=params.dataset_path, mode=params.train_mode, augmentation=params.aug)
-    nyuv2_test_set = NYUv2(root=params.dataset_path, mode='test', augmentation=False)
+    # nyuv2_test_set = NYUv2(root=params.dataset_path, mode='test', augmentation=False)
     
     nyuv2_train_loader = torch.utils.data.DataLoader(
         dataset=nyuv2_train_set,
@@ -36,6 +36,10 @@ def main(params):
         num_workers=2,
         pin_memory=True,
         drop_last=True)
+    
+    # for x,y in nyuv2_train_loader:
+    #     print(y)
+    #     break
     
     nyuv2_test_loader = torch.utils.data.DataLoader(
         dataset=nyuv2_test_set,
@@ -99,6 +103,7 @@ def main(params):
     
 if __name__ == "__main__":
     params = parse_args(LibMTL_args)
+    # print(params)
     # set device
     set_device(params.gpu_id)
     # set random seed

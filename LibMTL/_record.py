@@ -21,9 +21,11 @@ class _PerformanceMeter(object):
         self.metrics = {task: self.task_dict[task]['metrics_fn'] for task in self.task_name}
         
         self.results = {task:[] for task in self.task_name}
+        self.metrics_item = np.zeros(self.task_num)
         self.loss_item = np.zeros(self.task_num)
         
         self.has_val = False
+        self.better = False
         
         self._init_display()
         
@@ -47,6 +49,7 @@ class _PerformanceMeter(object):
         with torch.no_grad():
             for tn, task in enumerate(self.task_name):
                 self.results[task] = self.metrics[task].score_fun()
+                self.metrics_item[tn] = self.metrics[task].score_fun()[0]     # This is a list of 1 item so we only index for 0
                 self.loss_item[tn] = self.losses[task]._average_loss()
     
     def _init_display(self):
@@ -82,6 +85,10 @@ class _PerformanceMeter(object):
             print('| ', end='')
         print('Time: {:.4f}'.format(self.end_time-self.beg_time), end='')
         print(' | ', end='') if mode!='test' else print()
+        if mode is None:
+            print()
+        # print(self.results)
+        # print(self.best_result)
         
     def display_best_result(self):
         print('='*40)
@@ -100,9 +107,11 @@ class _PerformanceMeter(object):
                 self.best_result['result'] = new_result
         
     def _update_best_result(self, new_result, epoch):
+        self.better = False
         improvement = count_improvement(self.base_result, new_result, self.weight)
         self.improvement = improvement
         if improvement > self.best_result['improvement']:
+            self.better = True
             self.best_result['improvement'] = improvement
             self.best_result['epoch'] = epoch
             self.best_result['result'] = new_result

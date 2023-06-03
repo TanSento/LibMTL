@@ -38,6 +38,7 @@ class AbsMetric(object):
         """
         self.record = []
         self.bs = []
+
     
 # accuracy
 class AccMetric(AbsMetric):

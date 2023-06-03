@@ -43,6 +43,10 @@ def main(params):
     train_dataloaders = {task: data_loader[task]['train'] for task in task_name}
     val_dataloaders = {task: data_loader[task]['val'] for task in task_name}
     test_dataloaders = {task: data_loader[task]['test'] for task in task_name}
+
+    print(train_dataloaders)
+    next(iter(train_dataloaders['amazon']))
+
     
     # define encoder and decoders
     class Encoder(nn.Module):

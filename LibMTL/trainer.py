@@ -2,6 +2,9 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
+import matplotlib.pyplot as plt
+from numpy import save
+
 
 from LibMTL._record import _PerformanceMeter
 from LibMTL.utils import count_parameters
@@ -177,7 +180,7 @@ class Trainer(nn.Module):
             return loader, batch_num
 
     def train(self, train_dataloaders, test_dataloaders, epochs, 
-              val_dataloaders=None, return_weight=False):
+              val_dataloaders=None, return_weight=False, mode=None, name=None):
         r'''The training process of multi-task learning.
 
         Args:
@@ -196,6 +199,10 @@ class Trainer(nn.Module):
         
         self.batch_weight = np.zeros([self.task_num, epochs, train_batch])
         self.model.train_loss_buffer = np.zeros([self.task_num, epochs])
+        self.model.test_loss_buffer = np.zeros([self.task_num, epochs])
+        self.model.test_mape_buffer = np.zeros([self.task_num, epochs])
+
+
         self.model.epochs = epochs
         for epoch in range(epochs):
             self.model.epoch = epoch
@@ -233,18 +240,27 @@ class Trainer(nn.Module):
             if val_dataloaders is not None:
                 self.meter.has_val = True
                 val_improvement = self.test(val_dataloaders, epoch, mode='val', return_improvement=True)
-            self.test(test_dataloaders, epoch, mode='test')
+            self.test(test_dataloaders, epoch, mode='test', name=name)
             if self.scheduler is not None:
                 if self.scheduler_param['scheduler'] == 'reduce' and val_dataloaders is not None:
                     self.scheduler.step(val_improvement)
                 else:
                     self.scheduler.step()
         self.meter.display_best_result()
+        # print(self.model.train_loss_buffer)    # These 3 are 2-D Numpy Arrays
+        # print(self.model.test_loss_buffer)
+        # print(self.model.test_mape_buffer)
+
+        save(f'buffer/{name}_Train_Loss_Buffer.npy', self.model.train_loss_buffer)
+        save(f'buffer/{name}_Test_Loss_Buffer.npy', self.model.test_loss_buffer)
+        save(f'buffer/{name}_Test_MAPE_Buffer.npy', self.model.test_mape_buffer)
+
+
         if return_weight:
             return self.batch_weight
 
 
-    def test(self, test_dataloaders, epoch=None, mode='test', return_improvement=False):
+    def test(self, test_dataloaders, epoch=None, mode='test', return_improvement=False, name=None, inference=False):
         r'''The test process of multi-task learning.
 
         Args:
@@ -253,10 +269,13 @@ class Trainer(nn.Module):
                             dataloader which returns data and a dictionary of name-label pairs in each iteration.
             epoch (int, default=None): The current epoch. 
         '''
+
         test_loader, test_batch = self._prepare_dataloaders(test_dataloaders)
         
         self.model.eval()
         self.meter.record_time('begin')
+        if inference == True:
+            self.model.load_state_dict(torch.load(f'LibMTL_StateDict/{name}.pt'))
         with torch.no_grad():
             if not self.multi_input:
                 for batch_index in range(test_batch):
@@ -276,8 +295,16 @@ class Trainer(nn.Module):
                         self.meter.update(test_pred, test_gt, task)
         self.meter.record_time('end')
         self.meter.get_score()
-        self.meter.display(epoch=epoch, mode=mode)
-        improvement = self.meter.improvement
+        if inference == False:
+            self.model.test_loss_buffer[:, epoch] = self.meter.loss_item      # test and train are different even though they use the same self.meter
+            self.model.test_mape_buffer[:, epoch] = self.meter.metrics_item   # because of reinit()
+        
+        
+        self.meter.display(epoch=epoch, mode=mode)   # meter.display() will call its  _update_best_result() so we know whether meter.better() will be True/False
+        if self.meter.better == True:
+            torch.save(self.model.state_dict(), f"LibMTL_StateDict/{name}.pt")
+        if inference == False:
+            improvement = self.meter.improvement
         self.meter.reinit()
         if return_improvement:
             return improvement
